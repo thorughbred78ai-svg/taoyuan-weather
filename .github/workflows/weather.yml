@@ -1,0 +1,80 @@
+name: Taoyuan Weather
+
+on:
+  workflow_dispatch:
+    inputs:
+      input_date:
+        description: "指定日期 YYYY-MM-DD，留空使用台灣今天"
+        required: false
+        default: ""
+
+      input_locations:
+        description: "指定行政區，逗號分隔；留空代表桃園13區"
+        required: false
+        default: ""
+
+      send_telegram:
+        description: "是否推送 Telegram"
+        required: false
+        default: "true"
+
+  schedule:
+    # GitHub Actions cron 使用 UTC
+    # 01:00 UTC = 台灣 09:00
+    - cron: "0 1 * * *"
+
+
+permissions:
+  contents: read
+
+
+jobs:
+  weather:
+
+    runs-on: ubuntu-latest
+
+
+    steps:
+
+      # ------------------------------------------------------
+      # Checkout
+      # ------------------------------------------------------
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+
+      # ------------------------------------------------------
+      # Node.js
+      # ------------------------------------------------------
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+
+      # ------------------------------------------------------
+      # Install
+      # ------------------------------------------------------
+
+      - name: Install dependencies
+        run: npm ci
+
+
+      # ------------------------------------------------------
+      # Run
+      # ------------------------------------------------------
+
+      - name: Run weather
+        env:
+          CWA_API_KEY: ${{ secrets.CWA_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+          INPUT_DATE: ${{ github.event.inputs.input_date }}
+          INPUT_LOCATIONS: ${{ github.event.inputs.input_locations }}
+          SEND_TELEGRAM: ${{ github.event.inputs.send_telegram || 'true' }}
+
+        run: npm run weather
