@@ -1,0 +1,98 @@
+name: 桃園市各區天氣預報
+
+on:
+  workflow_dispatch:
+    inputs:
+      locations:
+        description: "查詢區域，逗號分隔；留空=桃園13區"
+        required: false
+        default: ""
+
+      date:
+        description: "查詢日期 YYYY-MM-DD；留空=今天"
+        required: false
+        default: ""
+
+      send_telegram:
+        description: "是否推送 Telegram"
+        required: false
+        type: boolean
+        default: true
+
+  schedule:
+    # GitHub Actions 使用 UTC
+    # 台灣時間：
+    # 00:00 / 03:00 / 06:00 / 09:00 / 12:00 / 15:00 / 18:00 / 21:00
+    - cron: "0 */3 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+
+  weather:
+
+    runs-on: ubuntu-latest
+
+    env:
+      TZ: Asia/Taipei
+
+      CWA_API_KEY: ${{ secrets.CWA_API_KEY }}
+
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      INPUT_LOCATIONS: ${{ github.event.inputs.locations }}
+
+      INPUT_DATE: ${{ github.event.inputs.date }}
+
+      SEND_TELEGRAM: ${{ github.event.inputs.send_telegram || 'true' }}
+
+    steps:
+
+      # -------------------------------------------------------
+      # Checkout
+      # -------------------------------------------------------
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+
+      # -------------------------------------------------------
+      # Node.js
+      # -------------------------------------------------------
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+
+      # -------------------------------------------------------
+      # Install
+      # -------------------------------------------------------
+
+      - name: Install dependencies
+        run: npm ci
+
+
+      # -------------------------------------------------------
+      # Weather
+      # -------------------------------------------------------
+
+      - name: Get Taoyuan Weather
+        run: npm run weather
+
+
+      # -------------------------------------------------------
+      # Summary
+      # -------------------------------------------------------
+
+      - name: Show GitHub Summary
+        if: always()
+        run: |
+          echo "## 桃園天氣預報" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "執行時間：$(date '+%Y-%m-%d %H:%M:%S %Z')" >> "$GITHUB_STEP_SUMMARY"
