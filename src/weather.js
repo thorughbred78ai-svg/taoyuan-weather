@@ -14,6 +14,9 @@ const CWA_API_URL =
 const TIMEZONE =
   "Asia/Taipei";
 
+const TELEGRAM_MAX_LENGTH =
+  3800;
+
 
 // ============================================================
 // Environment
@@ -40,6 +43,7 @@ if (!CWA_API_KEY) {
   );
 }
 
+
 if (SEND_TELEGRAM) {
 
   if (!TELEGRAM_BOT_TOKEN) {
@@ -53,11 +57,12 @@ if (SEND_TELEGRAM) {
       "缺少 GitHub Secret：TELEGRAM_CHAT_ID"
     );
   }
+
 }
 
 
 // ============================================================
-// 日期
+// 日期工具
 // ============================================================
 
 function getTaiwanDate() {
@@ -70,16 +75,17 @@ function getTaiwanDate() {
       month: "2-digit",
       day: "2-digit"
     }
-  ).format(new Date());
+  ).format(
+    new Date()
+  );
 
 }
 
 
-// ============================================================
-// 日期 + 天數
-// ============================================================
-
-function addDays(dateString, days) {
+function addDays(
+  dateString,
+  days
+) {
 
   const date =
     new Date(
@@ -103,11 +109,9 @@ function addDays(dateString, days) {
 }
 
 
-// ============================================================
-// 日期星期
-// ============================================================
-
-function getWeekday(dateString) {
+function getWeekday(
+  dateString
+) {
 
   const date =
     new Date(
@@ -121,6 +125,43 @@ function getWeekday(dateString) {
       weekday: "short"
     }
   ).format(date);
+
+}
+
+
+// ============================================================
+// 日期驗證
+// ============================================================
+
+function isValidDate(
+  value
+) {
+
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(value)
+  ) {
+
+    return false;
+
+  }
+
+  const date =
+    new Date(
+      `${value}T00:00:00+08:00`
+    );
+
+  return (
+    !Number.isNaN(date.getTime()) &&
+    new Intl.DateTimeFormat(
+      "en-CA",
+      {
+        timeZone: TIMEZONE,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      }
+    ).format(date) === value
+  );
 
 }
 
@@ -140,12 +181,10 @@ function getTargetDate() {
 
   }
 
-  if (
-    !/^\d{4}-\d{2}-\d{2}$/.test(input)
-  ) {
+  if (!isValidDate(input)) {
 
     throw new Error(
-      `日期格式錯誤：${input}`
+      `日期格式錯誤：${input}，請使用 YYYY-MM-DD`
     );
 
   }
@@ -166,36 +205,51 @@ function getTargetDistricts() {
 
   if (!input) {
 
-    return [...TAOYUAN_DISTRICTS];
+    return [
+      ...TAOYUAN_DISTRICTS
+    ];
 
   }
 
   const names =
     input
       .split(",")
-      .map(x => x.trim())
+      .map(
+        value => value.trim()
+      )
       .filter(Boolean);
 
   const result = [];
 
-  for (const name of names) {
+  for (
+    const name
+    of names
+  ) {
 
     const found =
       TAOYUAN_DISTRICTS.find(
-        x => x.name === name
+        district =>
+          district.name === name
       );
 
-    if (found) {
+    if (!found) {
 
-      if (
-        !result.some(
-          x => x.name === found.name
-        )
-      ) {
+      console.warn(
+        `⚠️ 忽略未知行政區：${name}`
+      );
 
-        result.push(found);
+      continue;
 
-      }
+    }
+
+    if (
+      !result.some(
+        district =>
+          district.name === found.name
+      )
+    ) {
+
+      result.push(found);
 
     }
 
@@ -231,21 +285,6 @@ async function fetchCWA() {
   url.searchParams.set(
     "format",
     "JSON"
-  );
-
-  // 只抓桃園13區
-  url.searchParams.set(
-    "locationId",
-    TAOYUAN_DISTRICTS
-      .map(x => x.locationId)
-      .join(",")
-  );
-
-  url.searchParams.set(
-    "locationName",
-    TAOYUAN_DISTRICTS
-      .map(x => x.name)
-      .join(",")
   );
 
   console.log(
@@ -296,7 +335,9 @@ function getElementValue(
 ) {
 
   if (!elementValue) {
+
     return {};
+
   }
 
   const result = {};
@@ -312,8 +353,8 @@ function getElementValue(
       "";
 
     const value =
-      item.ElementValue ||
-      item.elementValue ||
+      item.ElementValue ??
+      item.elementValue ??
       "";
 
     result[name] =
@@ -330,7 +371,9 @@ function getElementValue(
 // CWA Locations Parser
 // ============================================================
 
-function parseCWA(data) {
+function parseCWA(
+  data
+) {
 
   const locations =
     data?.records?.Locations ||
@@ -375,22 +418,16 @@ function parseCWA(data) {
         ) {
 
           result.push({
-
             district,
-
             elementName,
-
             start:
               time.StartTime,
-
             end:
               time.EndTime,
-
             values:
               getElementValue(
                 time.ElementValue
               )
-
           });
 
         }
@@ -417,17 +454,13 @@ function findElement(
 ) {
 
   return records.filter(
-    x =>
-      x.district === district &&
-      x.elementName === elementName
+    item =>
+      item.district === district &&
+      item.elementName === elementName
   );
 
 }
 
-
-// ============================================================
-// 找 Element 名稱
-// ============================================================
 
 function findElementByNames(
   records,
@@ -435,7 +468,10 @@ function findElementByNames(
   names
 ) {
 
-  for (const name of names) {
+  for (
+    const name
+    of names
+  ) {
 
     const result =
       findElement(
@@ -458,7 +494,7 @@ function findElementByNames(
 
 
 // ============================================================
-// 時間格式
+// 時間工具
 // ============================================================
 
 function formatTime(
@@ -466,7 +502,9 @@ function formatTime(
 ) {
 
   if (!iso) {
+
     return "";
+
   }
 
   const match =
@@ -475,7 +513,9 @@ function formatTime(
     );
 
   if (!match) {
+
     return "";
+
   }
 
   return `${match[1]}:${match[2]}`;
@@ -483,16 +523,14 @@ function formatTime(
 }
 
 
-// ============================================================
-// 日期
-// ============================================================
-
 function isoDate(
   iso
 ) {
 
   if (!iso) {
+
     return "";
+
   }
 
   const match =
@@ -508,7 +546,7 @@ function isoDate(
 
 
 // ============================================================
-// 取數字
+// 數值
 // ============================================================
 
 function cleanNumber(
@@ -517,7 +555,8 @@ function cleanNumber(
 
   if (
     value === undefined ||
-    value === null
+    value === null ||
+    value === ""
   ) {
 
     return "";
@@ -545,10 +584,10 @@ function getWeatherText(
 ) {
 
   return (
-    values["天氣現象"] ||
-    values["天氣預報綜合描述"] ||
-    values["Weather"] ||
-    values["WeatherDescription"] ||
+    values?.["天氣現象"] ||
+    values?.["天氣預報綜合描述"] ||
+    values?.["Weather"] ||
+    values?.["WeatherDescription"] ||
     ""
   );
 
@@ -556,7 +595,7 @@ function getWeatherText(
 
 
 // ============================================================
-// 3小時預報
+// 3 小時預報
 // ============================================================
 
 function buildHourlyForecast(
@@ -593,15 +632,6 @@ function buildHourlyForecast(
       ]
     );
 
-  const humidity =
-    findElementByNames(
-      records,
-      district,
-      [
-        "相對濕度"
-      ]
-    );
-
   const windDirection =
     findElementByNames(
       records,
@@ -620,82 +650,77 @@ function buildHourlyForecast(
       ]
     );
 
-
-  // 以天氣資料作為時間軸
   const timeline =
     weather.length > 0
       ? weather
       : temperature;
 
-
   const result = [];
-
 
   for (
     const item
     of timeline
   ) {
 
-    const date =
-      isoDate(item.start);
+    if (
+      isoDate(item.start) !== targetDate
+    ) {
 
-    if (date !== targetDate) {
       continue;
+
     }
 
-
-    const startTime =
-      formatTime(item.start);
-
-    const endTime =
-      formatTime(item.end);
-
-
-    const temp =
+    const temperatureItem =
       temperature.find(
         x =>
           x.start === item.start
-      )?.values?.["溫度"] ??
-      "";
+      );
 
-
-    const pop =
+    const rainItem =
       rain.find(
         x =>
           x.start === item.start
-      )?.values?.["3小時降雨機率"] ??
-      "";
+      );
 
-
-    const humidityValue =
-      humidity.find(
-        x =>
-          x.start === item.start
-      )?.values?.["相對濕度"] ??
-      "";
-
-
-    const direction =
+    const directionItem =
       windDirection.find(
         x =>
           x.start === item.start
-      )?.values?.["風向"] ??
-      "";
+      );
 
-
-    const speed =
+    const speedItem =
       windSpeed.find(
         x =>
           x.start === item.start
-      )?.values?.["風速"] ??
+      );
+
+    const temp =
+      temperatureItem
+        ?.values?.["溫度"] ??
       "";
 
+    const pop =
+      rainItem
+        ?.values?.["3小時降雨機率"] ??
+      "";
+
+    const direction =
+      directionItem
+        ?.values?.["風向"] ??
+      "";
+
+    const speed =
+      speedItem
+        ?.values?.["風速"] ??
+      "";
 
     result.push({
 
-      startTime,
+      startTime:
+        formatTime(item.start),
 
-      endTime,
+      endTime:
+        formatTime(item.end),
 
       weather:
         getWeatherText(
@@ -703,24 +728,20 @@ function buildHourlyForecast(
         ),
 
       temperature:
-        temp,
+        cleanNumber(temp),
 
       pop:
-        pop,
-
-      humidity:
-        humidityValue,
+        cleanNumber(pop),
 
       windDirection:
         direction,
 
       windSpeed:
-        speed
+        cleanNumber(speed)
 
     });
 
   }
-
 
   return result;
 
@@ -728,7 +749,7 @@ function buildHourlyForecast(
 
 
 // ============================================================
-// 7天逐日
+// 7 天逐日
 // ============================================================
 
 function buildDailyForecast(
@@ -786,11 +807,13 @@ function buildDailyForecast(
       ]
     );
 
-
   const result = [];
 
-
-  for (let i = 0; i < 7; i++) {
+  for (
+    let i = 0;
+    i < 7;
+    i++
+  ) {
 
     const date =
       addDays(
@@ -798,45 +821,37 @@ function buildDailyForecast(
         i
       );
 
-
     const weatherItems =
       weather.filter(
-        x =>
-          isoDate(x.start) === date
+        item =>
+          isoDate(item.start) === date
       );
-
 
     const temperatureItems =
       temperature.filter(
-        x =>
-          isoDate(x.start) === date
+        item =>
+          isoDate(item.start) === date
       );
-
 
     const popItems =
       pop.filter(
-        x =>
-          isoDate(x.start) === date
+        item =>
+          isoDate(item.start) === date
       );
-
 
     const uvItems =
       uv.filter(
-        x =>
-          isoDate(x.start) === date
+        item =>
+          isoDate(item.start) === date
       );
-
 
     const windItems =
       wind.filter(
-        x =>
-          isoDate(x.start) === date
+        item =>
+          isoDate(item.start) === date
       );
 
-
-    let weatherText =
-      "";
-
+    let weatherText = "";
 
     if (
       weatherItems.length > 0
@@ -849,10 +864,8 @@ function buildDailyForecast(
 
     }
 
-
     let high = "";
     let low = "";
-
 
     for (
       const item
@@ -867,7 +880,9 @@ function buildDailyForecast(
       ) {
 
         high =
-          values["最高溫度"];
+          cleanNumber(
+            values["最高溫度"]
+          );
 
       }
 
@@ -876,59 +891,60 @@ function buildDailyForecast(
       ) {
 
         low =
-          values["最低溫度"];
+          cleanNumber(
+            values["最低溫度"]
+          );
 
       }
 
     }
 
-
     let precipitation = "";
-
 
     if (
       popItems.length > 0
     ) {
 
       precipitation =
-        Object.values(
-          popItems[0].values
-        )[0] ?? "";
+        cleanNumber(
+          Object.values(
+            popItems[0].values
+          )[0] ?? ""
+        );
 
     }
 
-
     let uvValue = "";
-
 
     if (
       uvItems.length > 0
     ) {
 
       uvValue =
-        Object.values(
-          uvItems[0].values
-        )[0] ?? "";
+        cleanNumber(
+          Object.values(
+            uvItems[0].values
+          )[0] ?? ""
+        );
 
     }
 
-
     let windDirection = "";
-
 
     if (
       windItems.length > 0
     ) {
 
       windDirection =
-        windItems[0].values["風向"] ??
+        windItems[0]
+          .values
+          ?.["風向"] ??
         Object.values(
           windItems[0].values
         )[0] ??
         "";
 
     }
-
 
     result.push({
 
@@ -955,31 +971,13 @@ function buildDailyForecast(
 
   }
 
-
   return result;
 
 }
 
 
 // ============================================================
-// Telegram Escape
-// ============================================================
-
-function escapeTelegram(
-  text
-) {
-
-  return String(text)
-    .replace(
-      /([_*\[\]()~`>#+\-=|{}.!\\])/g,
-      "\\$1"
-    );
-
-}
-
-
-// ============================================================
-// 產生 Telegram 訊息
+// Telegram 訊息
 // ============================================================
 
 function buildTelegramMessage(
@@ -989,11 +987,6 @@ function buildTelegramMessage(
 ) {
 
   const lines = [];
-
-
-  // ----------------------------------------------------------
-  // Header
-  // ----------------------------------------------------------
 
   lines.push(
     "🌤 桃園市各區天氣預報"
@@ -1009,11 +1002,6 @@ function buildTelegramMessage(
 
   lines.push("");
 
-
-  // ----------------------------------------------------------
-  // 各區
-  // ----------------------------------------------------------
-
   for (
     const district
     of districts
@@ -1026,7 +1014,6 @@ function buildTelegramMessage(
         targetDate
       );
 
-
     const daily =
       buildDailyForecast(
         records,
@@ -1034,24 +1021,19 @@ function buildTelegramMessage(
         targetDate
       );
 
-
     lines.push(
       `📍 ${district.name}`
     );
 
     lines.push("");
 
-
-    // --------------------------------------------------------
-    // 未來3小時
-    // --------------------------------------------------------
-
     lines.push(
       "【未來3天・逐3小時】"
     );
 
-
-    if (hourly.length === 0) {
+    if (
+      hourly.length === 0
+    ) {
 
       lines.push(
         "目前沒有逐3小時資料"
@@ -1074,28 +1056,36 @@ function buildTelegramMessage(
 
         }
 
-        if (item.temperature) {
+        if (
+          item.temperature !== ""
+        ) {
 
           line +=
             `｜${item.temperature}°C`;
 
         }
 
-        if (item.pop !== "") {
+        if (
+          item.pop !== ""
+        ) {
 
           line +=
             `｜降雨${item.pop}%`;
 
         }
 
-        if (item.windDirection) {
+        if (
+          item.windDirection
+        ) {
 
           line +=
             `｜${item.windDirection}`;
 
         }
 
-        if (item.windSpeed) {
+        if (
+          item.windSpeed !== ""
+        ) {
 
           line +=
             `｜風速${item.windSpeed}`;
@@ -1108,18 +1098,11 @@ function buildTelegramMessage(
 
     }
 
-
     lines.push("");
-
-
-    // --------------------------------------------------------
-    // 未來7天
-    // --------------------------------------------------------
 
     lines.push(
       "【未來7天・逐日】"
     );
-
 
     for (
       const item
@@ -1129,14 +1112,12 @@ function buildTelegramMessage(
       let line =
         `${item.date} ${item.weekday}`;
 
-
       if (item.weather) {
 
         line +=
           `｜${item.weather}`;
 
       }
-
 
       if (
         item.low !== "" ||
@@ -1148,7 +1129,6 @@ function buildTelegramMessage(
 
       }
 
-
       if (
         item.precipitation !== ""
       ) {
@@ -1158,43 +1138,129 @@ function buildTelegramMessage(
 
       }
 
-
-      if (item.windDirection) {
+      if (
+        item.windDirection
+      ) {
 
         line +=
           `｜${item.windDirection}`;
 
       }
 
-
-      if (item.uv) {
+      if (item.uv !== "") {
 
         line +=
           `｜UV ${item.uv}`;
 
       }
 
-
       lines.push(line);
 
     }
 
-
     lines.push("");
+
     lines.push(
       "────────────────"
     );
+
     lines.push("");
 
   }
-
 
   lines.push(
     "資料來源：中央氣象署"
   );
 
-
   return lines.join("\n");
+
+}
+
+
+// ============================================================
+// Telegram 訊息分割
+// ============================================================
+
+function splitMessage(
+  message,
+  maxLength = TELEGRAM_MAX_LENGTH
+) {
+
+  if (
+    message.length <= maxLength
+  ) {
+
+    return [message];
+
+  }
+
+  const chunks = [];
+  let current = "";
+
+  for (
+    const line
+    of message.split("\n")
+  ) {
+
+    const candidate =
+      current
+        ? `${current}\n${line}`
+        : line;
+
+    if (
+      candidate.length <= maxLength
+    ) {
+
+      current =
+        candidate;
+
+      continue;
+
+    }
+
+    if (current) {
+
+      chunks.push(current);
+
+    }
+
+    if (
+      line.length <= maxLength
+    ) {
+
+      current =
+        line;
+
+      continue;
+
+    }
+
+    for (
+      let i = 0;
+      i < line.length;
+      i += maxLength
+    ) {
+
+      chunks.push(
+        line.substring(
+          i,
+          i + maxLength
+        )
+      );
+
+    }
+
+    current = "";
+
+  }
+
+  if (current) {
+
+    chunks.push(current);
+
+  }
+
+  return chunks;
 
 }
 
@@ -1217,36 +1283,28 @@ async function sendTelegram(
 
   }
 
-
   const url =
     `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
 
+  const chunks =
+    splitMessage(message);
 
-  // Telegram 單則限制約 4096 字元
-  // 分割訊息避免超過限制
-  const chunks = [];
-
+  console.log(
+    `Telegram 訊息數量：${chunks.length}`
+  );
 
   for (
-    let i = 0;
-    i < message.length;
-    i += 3800
+    let index = 0;
+    index < chunks.length;
+    index++
   ) {
 
-    chunks.push(
-      message.substring(
-        i,
-        i + 3800
-      )
+    const chunk =
+      chunks[index];
+
+    console.log(
+      `Telegram 發送 ${index + 1}/${chunks.length}，${chunk.length} 字元`
     );
-
-  }
-
-
-  for (
-    const chunk
-    of chunks
-  ) {
 
     const response =
       await fetch(
@@ -1267,19 +1325,14 @@ async function sendTelegram(
               text:
                 chunk,
 
-              // 使用一般文字模式，
-              // 避免 CWA 中文描述中的特殊符號
-              // 造成 MarkdownV2 parse error
               disable_web_page_preview:
                 true
             })
         }
       );
 
-
     const result =
       await response.json();
-
 
     if (
       !response.ok ||
@@ -1308,6 +1361,7 @@ function printSummary(
 ) {
 
   console.log("");
+
   console.log(
     "=========================================="
   );
@@ -1347,14 +1401,14 @@ async function main() {
   const districts =
     getTargetDistricts();
 
-
   console.log("");
+
   console.log(
     "=========================================="
   );
 
   console.log(
-    "CWA 桃園天氣系統"
+    "CWA 桃園天氣系統 v2.1.0"
   );
 
   console.log(
@@ -1373,24 +1427,15 @@ async function main() {
     "=========================================="
   );
 
-
-  // ----------------------------------------------------------
-  // API
-  // ----------------------------------------------------------
-
   const data =
     await fetchCWA();
-
-
-  // ----------------------------------------------------------
-  // Parse
-  // ----------------------------------------------------------
 
   const records =
     parseCWA(data);
 
-
-  if (records.length === 0) {
+  if (
+    records.length === 0
+  ) {
 
     throw new Error(
       "CWA API 沒有取得任何預報資料"
@@ -1398,21 +1443,11 @@ async function main() {
 
   }
 
-
-  // ----------------------------------------------------------
-  // Summary
-  // ----------------------------------------------------------
-
   printSummary(
     records,
     districts,
     targetDate
   );
-
-
-  // ----------------------------------------------------------
-  // Telegram
-  // ----------------------------------------------------------
 
   const message =
     buildTelegramMessage(
@@ -1421,23 +1456,20 @@ async function main() {
       targetDate
     );
 
-
   console.log("");
+
   console.log(
     "Telegram 預覽："
   );
 
-  console.log(
-    message
-  );
-
+  console.log(message);
 
   await sendTelegram(
     message
   );
 
-
   console.log("");
+
   console.log(
     "Telegram 推播完成"
   );
@@ -1450,6 +1482,7 @@ main()
     error => {
 
       console.error("");
+
       console.error(
         "=========================================="
       );
