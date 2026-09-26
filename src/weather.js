@@ -29,7 +29,7 @@ const TIMEZONE =
   "Asia/Taipei";
 
 const VERSION =
-  "2.3.0";
+  "3.0.0";
 
 
 // ============================================================
@@ -52,30 +52,24 @@ const SEND_TELEGRAM =
 
 
 if (!CWA_API_KEY) {
-
   throw new Error(
     "缺少 GitHub Secret：CWA_API_KEY"
   );
-
 }
 
 
 if (SEND_TELEGRAM) {
 
   if (!TELEGRAM_BOT_TOKEN) {
-
     throw new Error(
       "缺少 GitHub Secret：TELEGRAM_BOT_TOKEN"
     );
-
   }
 
   if (!TELEGRAM_CHAT_ID) {
-
     throw new Error(
       "缺少 GitHub Secret：TELEGRAM_CHAT_ID"
     );
-
   }
 
 }
@@ -96,6 +90,37 @@ function getTaiwanDate() {
       day: "2-digit"
     }
   ).format(new Date());
+
+}
+
+
+// ============================================================
+// 日期 + 天數
+// ============================================================
+
+function addDays(
+  dateString,
+  days
+) {
+
+  const date =
+    new Date(
+      `${dateString}T00:00:00+08:00`
+    );
+
+  date.setUTCDate(
+    date.getUTCDate() + days
+  );
+
+  return new Intl.DateTimeFormat(
+    "en-CA",
+    {
+      timeZone: TIMEZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }
+  ).format(date);
 
 }
 
@@ -134,11 +159,8 @@ function getTargetDate() {
     process.env.INPUT_DATE?.trim();
 
   if (!input) {
-
     return getTaiwanDate();
-
   }
-
 
   if (
     !/^\d{4}-\d{2}-\d{2}$/.test(input)
@@ -150,12 +172,10 @@ function getTargetDate() {
 
   }
 
-
   const date =
     new Date(
       `${input}T00:00:00+08:00`
     );
-
 
   if (
     Number.isNaN(
@@ -168,7 +188,6 @@ function getTargetDate() {
     );
 
   }
-
 
   return input;
 
@@ -184,7 +203,6 @@ function getTargetDistricts() {
   const input =
     process.env.INPUT_LOCATIONS?.trim();
 
-
   if (!input) {
 
     return [
@@ -192,7 +210,6 @@ function getTargetDistricts() {
     ];
 
   }
-
 
   const names =
     input
@@ -203,9 +220,7 @@ function getTargetDistricts() {
       )
       .filter(Boolean);
 
-
   const result = [];
-
 
   for (
     const name
@@ -218,7 +233,6 @@ function getTargetDistricts() {
           district.name === name
       );
 
-
     if (!found) {
 
       console.warn(
@@ -229,7 +243,6 @@ function getTargetDistricts() {
 
     }
 
-
     if (
       !result.some(
         district =>
@@ -237,14 +250,11 @@ function getTargetDistricts() {
       )
     ) {
 
-      result.push(
-        found
-      );
+      result.push(found);
 
     }
 
   }
-
 
   if (
     result.length === 0
@@ -255,7 +265,6 @@ function getTargetDistricts() {
     );
 
   }
-
 
   return result;
 
@@ -274,18 +283,15 @@ async function fetchCWA(
   const url =
     new URL(apiUrl);
 
-
   url.searchParams.set(
     "Authorization",
     CWA_API_KEY
   );
 
-
   url.searchParams.set(
     "format",
     "JSON"
   );
-
 
   console.log(
     `${datasetName} URL:`,
@@ -315,7 +321,6 @@ async function fetchCWA(
 
 
   let data;
-
 
   try {
 
@@ -429,9 +434,7 @@ function getElementValues(
 ) {
 
   if (!elementValue) {
-
     return {};
-
   }
 
 
@@ -464,7 +467,9 @@ function getElementValues(
           key,
           value
         ]
-        of Object.entries(item)
+        of Object.entries(
+          item
+        )
       ) {
 
         if (
@@ -476,14 +481,12 @@ function getElementValues(
 
         }
 
-
         result[key] =
           value;
 
       }
 
     }
-
 
     return result;
 
@@ -687,7 +690,6 @@ function parseCWA(
             time
           );
 
-
         const end =
           getEndTime(
             time
@@ -741,8 +743,10 @@ function getValue(
   ) {
 
     if (
-      values?.[name] !== undefined &&
-      values?.[name] !== null &&
+      values?.[name] !==
+      undefined &&
+      values?.[name] !==
+      null &&
       values?.[name] !== ""
     ) {
 
@@ -751,7 +755,6 @@ function getValue(
     }
 
   }
-
 
   return "";
 
@@ -767,11 +770,8 @@ function isoDate(
 ) {
 
   if (!iso) {
-
     return "";
-
   }
-
 
   const match =
     String(
@@ -797,11 +797,8 @@ function formatTime(
 ) {
 
   if (!iso) {
-
     return "";
-
   }
-
 
   const match =
     String(
@@ -812,7 +809,6 @@ function formatTime(
 
 
   if (!match) {
-
     return "";
 
   }
@@ -858,7 +854,12 @@ function cleanNumber(
 
 
 // ============================================================
-// 天氣文字
+// 天氣現象
+// ============================================================
+//
+// 注意：
+// 不再讀取「天氣預報綜合描述」。
+// 只使用「天氣現象」。
 // ============================================================
 
 function getWeatherText(
@@ -869,9 +870,7 @@ function getWeatherText(
     values,
     [
       "Weather",
-      "天氣現象",
-      "WeatherDescription",
-      "天氣預報綜合描述"
+      "天氣現象"
     ]
   );
 
@@ -879,20 +878,26 @@ function getWeatherText(
 
 
 // ============================================================
-// 建立逐時間預報
+// 建立逐時預報資料
 // ============================================================
 //
-// 輸出資料：
+// 輸出資料只有：
 //
-// startTime
-// endTime
-// weather
-// weatherDescription
-// pop3h
-// pop6h
-// pop12h
-// precipitation
+// 1. 時間
+// 2. 天氣現象
+// 3. 3小時降雨機率
+// 4. 6小時降雨機率
+// 5. 12小時降雨機率
+// 6. 降雨機率
 //
+// 不包含：
+//
+// - 天氣預報綜合描述
+// - 溫度
+// - 濕度
+// - 風向
+// - 風速
+// - UV
 // ============================================================
 
 function buildHourlyForecast(
@@ -931,24 +936,11 @@ function buildHourlyForecast(
         {
           start,
           end,
-
-          weather:
-            "",
-
-          weatherDescription:
-            "",
-
-          pop3h:
-            "",
-
-          pop6h:
-            "",
-
-          pop12h:
-            "",
-
-          precipitation:
-            ""
+          weather: "",
+          pop3: "",
+          pop6: "",
+          pop12: "",
+          pop: ""
         }
       );
 
@@ -998,34 +990,18 @@ function buildHourlyForecast(
 
 
       // ------------------------------------------------------
-      // 天氣預報綜合描述
-      // ------------------------------------------------------
-
-      case "天氣預報綜合描述":
-
-        row.weatherDescription =
-          getWeatherText(
-            values
-          );
-
-        break;
-
-
-      // ------------------------------------------------------
       // 3 小時降雨機率
       // ------------------------------------------------------
 
       case "3小時降雨機率":
 
-        row.pop3h =
-          cleanNumber(
-            getValue(
-              values,
-              [
-                "ProbabilityOfPrecipitation",
-                "3小時降雨機率"
-              ]
-            )
+        row.pop3 =
+          getValue(
+            values,
+            [
+              "ProbabilityOfPrecipitation",
+              "3小時降雨機率"
+            ]
           );
 
         break;
@@ -1037,15 +1013,13 @@ function buildHourlyForecast(
 
       case "6小時降雨機率":
 
-        row.pop6h =
-          cleanNumber(
-            getValue(
-              values,
-              [
-                "ProbabilityOfPrecipitation",
-                "6小時降雨機率"
-              ]
-            )
+        row.pop6 =
+          getValue(
+            values,
+            [
+              "ProbabilityOfPrecipitation",
+              "6小時降雨機率"
+            ]
           );
 
         break;
@@ -1057,35 +1031,31 @@ function buildHourlyForecast(
 
       case "12小時降雨機率":
 
-        row.pop12h =
-          cleanNumber(
-            getValue(
-              values,
-              [
-                "ProbabilityOfPrecipitation",
-                "12小時降雨機率"
-              ]
-            )
+        row.pop12 =
+          getValue(
+            values,
+            [
+              "ProbabilityOfPrecipitation",
+              "12小時降雨機率"
+            ]
           );
 
         break;
 
 
       // ------------------------------------------------------
-      // 一般降雨機率
+      // 降雨機率
       // ------------------------------------------------------
 
       case "降雨機率":
 
-        row.precipitation =
-          cleanNumber(
-            getValue(
-              values,
-              [
-                "ProbabilityOfPrecipitation",
-                "降雨機率"
-              ]
-            )
+        row.pop =
+          getValue(
+            values,
+            [
+              "ProbabilityOfPrecipitation",
+              "降雨機率"
+            ]
           );
 
         break;
@@ -1120,20 +1090,25 @@ function buildHourlyForecast(
         weather:
           item.weather,
 
-        weatherDescription:
-          item.weatherDescription,
+        pop3:
+          cleanNumber(
+            item.pop3
+          ),
 
-        pop3h:
-          item.pop3h,
+        pop6:
+          cleanNumber(
+            item.pop6
+          ),
 
-        pop6h:
-          item.pop6h,
+        pop12:
+          cleanNumber(
+            item.pop12
+          ),
 
-        pop12h:
-          item.pop12h,
-
-        precipitation:
-          item.precipitation
+        pop:
+          cleanNumber(
+            item.pop
+          )
 
       })
     );
@@ -1143,9 +1118,6 @@ function buildHourlyForecast(
 
 // ============================================================
 // Telegram Escape
-// ============================================================
-//
-// 本版不使用 Markdown / MarkdownV2。
 // ============================================================
 
 function escapeTelegram(
@@ -1160,28 +1132,39 @@ function escapeTelegram(
 
 
 // ============================================================
-// 建立 Telegram Message
+// Telegram Message
 // ============================================================
 //
 // 最終輸出格式：
 //
-// 08:00～11:00｜多雲｜短暫雨｜3小時降雨機率：30%｜6小時降雨機率：40%｜12小時降雨機率：50%｜降雨機率：60%
+// 08:00～11:00｜晴時多雲｜3小時降雨機率：20%｜6小時降雨機率：30%
+// 12小時降雨機率：40%｜降雨機率：50%
 //
 // 注意：
 //
-// 「天氣現象」不顯示欄位名稱。
-// 「天氣預報綜合描述」不顯示欄位名稱。
-//
+// 不輸出：
+// - 天氣現象：
+// - 天氣預報綜合描述：
 // ============================================================
 
 function buildTelegramMessage(
   records3Day,
-  records7Day,
   districts,
   targetDate
 ) {
 
   const lines = [];
+
+
+  lines.push(
+    `🌤 桃園市各區天氣預報 v${VERSION}`
+  );
+
+  lines.push(
+    `📅 ${targetDate} ${getWeekday(targetDate)}`
+  );
+
+  lines.push("");
 
 
   for (
@@ -1191,10 +1174,7 @@ function buildTelegramMessage(
 
     const hourly =
       buildHourlyForecast(
-        [
-          ...records3Day,
-          ...records7Day
-        ],
+        records3Day,
         district.name,
         targetDate
       );
@@ -1204,12 +1184,6 @@ function buildTelegramMessage(
       `📍 ${district.name}`
     );
 
-
-    lines.push(
-      `${targetDate} ${getWeekday(targetDate)}`
-    );
-
-
     lines.push("");
 
 
@@ -1218,7 +1192,7 @@ function buildTelegramMessage(
     ) {
 
       lines.push(
-        "目前沒有資料"
+        "目前沒有預報資料"
       );
 
     } else {
@@ -1228,7 +1202,7 @@ function buildTelegramMessage(
         of hourly
       ) {
 
-        const fields = [];
+        const parts = [];
 
 
         // ----------------------------------------------------
@@ -1240,8 +1214,8 @@ function buildTelegramMessage(
           item.endTime
         ) {
 
-          fields.push(
-            `${item.startTime}～${item.endTime}`
+          parts.push(
+            `${item.startTime || "?"}～${item.endTime || "?"}`
           );
 
         }
@@ -1249,31 +1223,16 @@ function buildTelegramMessage(
 
         // ----------------------------------------------------
         // 天氣現象
-        // 不顯示「天氣現象：」
+        //
+        // 只輸出值，不輸出「天氣現象：」
         // ----------------------------------------------------
 
         if (
           item.weather
         ) {
 
-          fields.push(
+          parts.push(
             item.weather
-          );
-
-        }
-
-
-        // ----------------------------------------------------
-        // 天氣預報綜合描述
-        // 不顯示「天氣預報綜合描述：」
-        // ----------------------------------------------------
-
-        if (
-          item.weatherDescription
-        ) {
-
-          fields.push(
-            item.weatherDescription
           );
 
         }
@@ -1284,11 +1243,11 @@ function buildTelegramMessage(
         // ----------------------------------------------------
 
         if (
-          item.pop3h !== ""
+          item.pop3 !== ""
         ) {
 
-          fields.push(
-            `3小時降雨機率：${item.pop3h}%`
+          parts.push(
+            `3小時降雨機率：${item.pop3}%`
           );
 
         }
@@ -1299,11 +1258,11 @@ function buildTelegramMessage(
         // ----------------------------------------------------
 
         if (
-          item.pop6h !== ""
+          item.pop6 !== ""
         ) {
 
-          fields.push(
-            `6小時降雨機率：${item.pop6h}%`
+          parts.push(
+            `6小時降雨機率：${item.pop6}%`
           );
 
         }
@@ -1314,42 +1273,38 @@ function buildTelegramMessage(
         // ----------------------------------------------------
 
         if (
-          item.pop12h !== ""
+          item.pop12 !== ""
         ) {
 
-          fields.push(
-            `12小時降雨機率：${item.pop12h}%`
+          parts.push(
+            `12小時降雨機率：${item.pop12}%`
           );
 
         }
 
 
         // ----------------------------------------------------
-        // 一般降雨機率
+        // 降雨機率
         // ----------------------------------------------------
 
         if (
-          item.precipitation !== ""
+          item.pop !== ""
         ) {
 
-          fields.push(
-            `降雨機率：${item.precipitation}%`
+          parts.push(
+            `降雨機率：${item.pop}%`
           );
 
         }
 
 
-        // ----------------------------------------------------
-        // 如果該時間完全沒有任何資料
-        // ----------------------------------------------------
-
         if (
-          fields.length > 0
+          parts.length > 0
         ) {
 
           lines.push(
             escapeTelegram(
-              fields.join("｜")
+              parts.join("｜")
             )
           );
 
@@ -1437,7 +1392,6 @@ async function sendTelegram(
 
       }
 
-
       current =
         line;
 
@@ -1496,7 +1450,6 @@ async function sendTelegram(
 
 
     let result;
-
 
     try {
 
@@ -1558,33 +1511,27 @@ function printDatasetSummary(
 
 
   console.log("");
-
   console.log(
     "------------------------------------------"
   );
-
 
   console.log(
     `${datasetName}`
   );
 
-
   console.log(
     `Records：${records.length}`
   );
 
-
   console.log(
     `行政區：${districts.size}`
   );
-
 
   console.log(
     `Elements：${[
       ...elements
     ].join("、")}`
   );
-
 
   console.log(
     "------------------------------------------"
@@ -1608,31 +1555,25 @@ async function main() {
 
 
   console.log("");
-
   console.log(
     "=========================================="
   );
-
 
   console.log(
     `CWA 桃園天氣系統 v${VERSION}`
   );
 
-
   console.log(
     `Taiwan Date：${getTaiwanDate()}`
   );
-
 
   console.log(
     `Target Date：${targetDate}`
   );
 
-
   console.log(
     `Districts：${districts.map(x => x.name).join("、")}`
   );
-
 
   console.log(
     "=========================================="
@@ -1651,17 +1592,6 @@ async function main() {
 
 
   // ----------------------------------------------------------
-  // 7 天 API
-  // ----------------------------------------------------------
-
-  const data7Day =
-    await fetchCWA(
-      CWA_7DAY_API_URL,
-      "CWA 7-Day"
-    );
-
-
-  // ----------------------------------------------------------
   // Parse
   // ----------------------------------------------------------
 
@@ -1669,13 +1599,6 @@ async function main() {
     parseCWA(
       data3Day,
       "3DAY"
-    );
-
-
-  const records7Day =
-    parseCWA(
-      data7Day,
-      "7DAY"
     );
 
 
@@ -1690,26 +1613,9 @@ async function main() {
   }
 
 
-  if (
-    records7Day.length === 0
-  ) {
-
-    throw new Error(
-      "CWA F-D0047-007 沒有取得任何桃園預報資料"
-    );
-
-  }
-
-
   printDatasetSummary(
     records3Day,
     "F-D0047-005 / 未來3天"
-  );
-
-
-  printDatasetSummary(
-    records7Day,
-    "F-D0047-007 / 未來1週"
   );
 
 
@@ -1720,28 +1626,23 @@ async function main() {
   const message =
     buildTelegramMessage(
       records3Day,
-      records7Day,
       districts,
       targetDate
     );
 
 
   console.log("");
-
   console.log(
     "=========================================="
   );
-
 
   console.log(
     "Telegram 預覽"
   );
 
-
   console.log(
     "=========================================="
   );
-
 
   console.log(
     message
@@ -1754,16 +1655,13 @@ async function main() {
 
 
   console.log("");
-
   console.log(
     "=========================================="
   );
 
-
   console.log(
     "✅ Telegram 推播完成"
   );
-
 
   console.log(
     "=========================================="
@@ -1777,27 +1675,22 @@ main()
     error => {
 
       console.error("");
-
       console.error(
         "=========================================="
       );
 
-
       console.error(
         "❌ 執行失敗"
       );
-
 
       console.error(
         error?.stack ||
         error
       );
 
-
       console.error(
         "=========================================="
       );
-
 
       process.exit(
         1
@@ -1805,4 +1698,3 @@ main()
 
     }
   );
-
