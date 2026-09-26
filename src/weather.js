@@ -962,11 +962,7 @@ function buildHourlyForecast(
           start,
           end,
           weather: "",
-          temperature: "",
-          pop: "",
-          humidity: "",
-          windDirection: "",
-          windSpeed: ""
+          pop: ""
         }
       );
 
