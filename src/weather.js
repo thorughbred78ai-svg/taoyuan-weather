@@ -17,6 +17,7 @@ import {
 // F-D0047-007
 // 桃園市未來1週天氣預報
 //
+// 不再使用 F-D0047-093。
 // ============================================================
 
 const CWA_3DAY_API_URL =
@@ -29,7 +30,7 @@ const TIMEZONE =
   "Asia/Taipei";
 
 const VERSION =
-  "3.0.0";
+  "2.2.0";
 
 
 // ============================================================
@@ -376,6 +377,17 @@ async function fetchCWA(
 // ============================================================
 // CWA Location Parser
 // ============================================================
+//
+// CWA 新版資料常見：
+//
+// records.Locations[0].Location
+//
+// 舊版 REST JSON 也可能出現：
+//
+// records.locations[0].location
+//
+// 這裡兩種都支援。
+// ============================================================
 
 function getLocations(
   data
@@ -462,14 +474,18 @@ function getElementValues(
       }
 
 
+      const entries =
+        Object.entries(
+          item
+        );
+
+
       for (
         const [
           key,
           value
         ]
-        of Object.entries(
-          item
-        )
+        of entries
       ) {
 
         if (
@@ -729,6 +745,37 @@ function parseCWA(
 
 
 // ============================================================
+// Find Element
+// ============================================================
+
+function findElement(
+  records,
+  district,
+  elementNames
+) {
+
+  const names =
+    Array.isArray(
+      elementNames
+    )
+      ? elementNames
+      : [
+          elementNames
+        ];
+
+
+  return records.filter(
+    record =>
+      record.district === district &&
+      names.includes(
+        record.elementName
+      )
+  );
+
+}
+
+
+// ============================================================
 // Value Helper
 // ============================================================
 
@@ -854,12 +901,7 @@ function cleanNumber(
 
 
 // ============================================================
-// 天氣現象
-// ============================================================
-//
-// 注意：
-// 不再讀取「天氣預報綜合描述」。
-// 只使用「天氣現象」。
+// 天氣文字
 // ============================================================
 
 function getWeatherText(
@@ -870,7 +912,9 @@ function getWeatherText(
     values,
     [
       "Weather",
-      "天氣現象"
+      "天氣現象",
+      "WeatherDescription",
+      "天氣預報綜合描述"
     ]
   );
 
@@ -878,26 +922,7 @@ function getWeatherText(
 
 
 // ============================================================
-// 建立逐時預報資料
-// ============================================================
-//
-// 輸出資料只有：
-//
-// 1. 時間
-// 2. 天氣現象
-// 3. 3小時降雨機率
-// 4. 6小時降雨機率
-// 5. 12小時降雨機率
-// 6. 降雨機率
-//
-// 不包含：
-//
-// - 天氣預報綜合描述
-// - 溫度
-// - 濕度
-// - 風向
-// - 風速
-// - UV
+// 建立 3 小時預報
 // ============================================================
 
 function buildHourlyForecast(
@@ -937,10 +962,11 @@ function buildHourlyForecast(
           start,
           end,
           weather: "",
-          pop3: "",
-          pop6: "",
-          pop12: "",
-          pop: ""
+          temperature: "",
+          pop: "",
+          humidity: "",
+          windDirection: "",
+          windSpeed: ""
         }
       );
 
@@ -975,27 +1001,10 @@ function buildHourlyForecast(
       record.elementName
     ) {
 
-      // ------------------------------------------------------
-      // 天氣現象
-      // ------------------------------------------------------
-
-      case "天氣現象":
-
-        row.weather =
-          getWeatherText(
-            values
-          );
-
-        break;
-
-
-      // ------------------------------------------------------
-      // 3 小時降雨機率
-      // ------------------------------------------------------
 
       case "3小時降雨機率":
 
-        row.pop3 =
+        row.pop =
           getValue(
             values,
             [
@@ -1007,56 +1016,44 @@ function buildHourlyForecast(
         break;
 
 
-      // ------------------------------------------------------
-      // 6 小時降雨機率
-      // ------------------------------------------------------
-
       case "6小時降雨機率":
 
-        row.pop6 =
-          getValue(
-            values,
-            [
-              "ProbabilityOfPrecipitation",
-              "6小時降雨機率"
-            ]
+        if (!row.pop) {
+
+          row.pop =
+            getValue(
+              values,
+              [
+                "ProbabilityOfPrecipitation",
+                "6小時降雨機率"
+              ]
+            );
+
+        }
+
+        break;
+
+
+      case "天氣現象":
+
+        row.weather =
+          getWeatherText(
+            values
           );
 
         break;
 
 
-      // ------------------------------------------------------
-      // 12 小時降雨機率
-      // ------------------------------------------------------
+      case "天氣預報綜合描述":
 
-      case "12小時降雨機率":
+        if (!row.weather) {
 
-        row.pop12 =
-          getValue(
-            values,
-            [
-              "ProbabilityOfPrecipitation",
-              "12小時降雨機率"
-            ]
-          );
+          row.weather =
+            getWeatherText(
+              values
+            );
 
-        break;
-
-
-      // ------------------------------------------------------
-      // 降雨機率
-      // ------------------------------------------------------
-
-      case "降雨機率":
-
-        row.pop =
-          getValue(
-            values,
-            [
-              "ProbabilityOfPrecipitation",
-              "降雨機率"
-            ]
-          );
+        }
 
         break;
 
@@ -1076,7 +1073,6 @@ function buildHourlyForecast(
     )
     .map(
       item => ({
-
         startTime:
           formatTime(
             item.start
@@ -1090,26 +1086,11 @@ function buildHourlyForecast(
         weather:
           item.weather,
 
-        pop3:
-          cleanNumber(
-            item.pop3
-          ),
-
-        pop6:
-          cleanNumber(
-            item.pop6
-          ),
-
-        pop12:
-          cleanNumber(
-            item.pop12
-          ),
 
         pop:
           cleanNumber(
             item.pop
           )
-
       })
     );
 
@@ -1117,7 +1098,150 @@ function buildHourlyForecast(
 
 
 // ============================================================
+// 建立 7 天逐日預報
+// ============================================================
+
+function buildDailyForecast(
+  records,
+  district,
+  startDate
+) {
+
+  const result = [];
+
+
+  for (
+    let i = 0;
+    i < 7;
+    i++
+  ) {
+
+    const date =
+      addDays(
+        startDate,
+        i
+      );
+
+
+    const relevant =
+      records.filter(
+        record =>
+          record.district === district &&
+          isoDate(
+            record.start
+          ) === date
+      );
+
+
+    let weather = "";
+    let precipitation = "";
+
+
+    for (
+      const record
+      of relevant
+    ) {
+
+      const values =
+        record.values ||
+        {};
+
+
+      if (
+        !weather &&
+        (
+          record.elementName ===
+            "天氣現象" ||
+          record.elementName ===
+            "天氣預報綜合描述"
+        )
+      ) {
+
+        weather =
+          getWeatherText(
+            values
+          );
+
+      }
+
+
+      if (
+        record.elementName ===
+        "12小時降雨機率"
+      ) {
+
+        if (!precipitation) {
+
+          precipitation =
+            getValue(
+              values,
+              [
+                "ProbabilityOfPrecipitation",
+                "12小時降雨機率"
+              ]
+            );
+
+        }
+
+      }
+
+
+      if (
+        record.elementName ===
+        "降雨機率"
+      ) {
+
+        if (!precipitation) {
+
+          precipitation =
+            getValue(
+              values,
+              [
+                "ProbabilityOfPrecipitation",
+                "降雨機率"
+              ]
+            );
+
+        }
+
+      }
+
+    }
+
+
+    result.push({
+
+      date,
+
+      weekday:
+        getWeekday(
+          date
+        ),
+
+      weather,
+
+
+      precipitation:
+        cleanNumber(
+          precipitation
+        )
+
+    });
+
+  }
+
+
+  return result;
+
+}
+
+
+// ============================================================
 // Telegram Escape
+// ============================================================
+//
+// 本版不使用 Markdown / MarkdownV2。
+// 保留函式只是方便未來擴充。
 // ============================================================
 
 function escapeTelegram(
@@ -1134,21 +1258,10 @@ function escapeTelegram(
 // ============================================================
 // Telegram Message
 // ============================================================
-//
-// 最終輸出格式：
-//
-// 08:00～11:00｜晴時多雲｜3小時降雨機率：20%｜6小時降雨機率：30%
-// 12小時降雨機率：40%｜降雨機率：50%
-//
-// 注意：
-//
-// 不輸出：
-// - 天氣現象：
-// - 天氣預報綜合描述：
-// ============================================================
 
 function buildTelegramMessage(
   records3Day,
+  records7Day,
   districts,
   targetDate
 ) {
@@ -1162,6 +1275,10 @@ function buildTelegramMessage(
 
   lines.push(
     `📅 ${targetDate} ${getWeekday(targetDate)}`
+  );
+
+  lines.push(
+    "📊 未來3天逐3小時＋未來7天逐日"
   );
 
   lines.push("");
@@ -1180,6 +1297,14 @@ function buildTelegramMessage(
       );
 
 
+    const daily =
+      buildDailyForecast(
+        records7Day,
+        district.name,
+        targetDate
+      );
+
+
     lines.push(
       `📍 ${district.name}`
     );
@@ -1187,12 +1312,21 @@ function buildTelegramMessage(
     lines.push("");
 
 
+    // --------------------------------------------------------
+    // 3 小時
+    // --------------------------------------------------------
+
+    lines.push(
+      "【未來3天・逐3小時】"
+    );
+
+
     if (
       hourly.length === 0
     ) {
 
       lines.push(
-        "目前沒有預報資料"
+        "目前沒有逐3小時資料"
       );
 
     } else {
@@ -1202,115 +1336,93 @@ function buildTelegramMessage(
         of hourly
       ) {
 
-        const parts = [];
+        let line =
+          `${item.startTime}～${item.endTime}`;
 
 
-        // ----------------------------------------------------
-        // 時間
-        // ----------------------------------------------------
+        if (item.weather) {
 
-        if (
-          item.startTime ||
-          item.endTime
-        ) {
-
-          parts.push(
-            `${item.startTime || "?"}～${item.endTime || "?"}`
-          );
+          line +=
+            `｜${item.weather}`;
 
         }
 
 
-        // ----------------------------------------------------
-        // 天氣現象
-        //
-        // 只輸出值，不輸出「天氣現象：」
-        // ----------------------------------------------------
-
         if (
-          item.weather
+          item.temperature !== ""
         ) {
 
-          parts.push(
-            item.weather
-          );
+          line +=
+            `｜${item.temperature}°C`;
 
         }
 
-
-        // ----------------------------------------------------
-        // 3 小時降雨機率
-        // ----------------------------------------------------
-
-        if (
-          item.pop3 !== ""
-        ) {
-
-          parts.push(
-            `3小時降雨機率：${item.pop3}%`
-          );
-
-        }
-
-
-        // ----------------------------------------------------
-        // 6 小時降雨機率
-        // ----------------------------------------------------
-
-        if (
-          item.pop6 !== ""
-        ) {
-
-          parts.push(
-            `6小時降雨機率：${item.pop6}%`
-          );
-
-        }
-
-
-        // ----------------------------------------------------
-        // 12 小時降雨機率
-        // ----------------------------------------------------
-
-        if (
-          item.pop12 !== ""
-        ) {
-
-          parts.push(
-            `12小時降雨機率：${item.pop12}%`
-          );
-
-        }
-
-
-        // ----------------------------------------------------
-        // 降雨機率
-        // ----------------------------------------------------
 
         if (
           item.pop !== ""
         ) {
 
-          parts.push(
-            `降雨機率：${item.pop}%`
-          );
+          line +=
+            `｜降雨${item.pop}%`;
 
         }
 
 
-        if (
-          parts.length > 0
-        ) {
-
-          lines.push(
-            escapeTelegram(
-              parts.join("｜")
-            )
-          );
-
-        }
+        lines.push(
+          escapeTelegram(
+            line
+          )
+        );
 
       }
+
+    }
+
+
+    lines.push("");
+
+
+    // --------------------------------------------------------
+    // 7 天
+    // --------------------------------------------------------
+
+    lines.push(
+      "【未來7天・逐日】"
+    );
+
+
+    for (
+      const item
+      of daily
+    ) {
+
+      let line =
+        `${item.date} ${item.weekday}`;
+
+
+      if (item.weather) {
+
+        line +=
+          `｜${item.weather}`;
+
+      }
+
+
+      if (
+        item.precipitation !== ""
+      ) {
+
+        line +=
+          `｜降雨${item.precipitation}%`;
+
+      }
+
+
+      lines.push(
+        escapeTelegram(
+          line
+        )
+      );
 
     }
 
@@ -1592,6 +1704,17 @@ async function main() {
 
 
   // ----------------------------------------------------------
+  // 7 天 API
+  // ----------------------------------------------------------
+
+  const data7Day =
+    await fetchCWA(
+      CWA_7DAY_API_URL,
+      "CWA 7-Day"
+    );
+
+
+  // ----------------------------------------------------------
   // Parse
   // ----------------------------------------------------------
 
@@ -1599,6 +1722,13 @@ async function main() {
     parseCWA(
       data3Day,
       "3DAY"
+    );
+
+
+  const records7Day =
+    parseCWA(
+      data7Day,
+      "7DAY"
     );
 
 
@@ -1613,9 +1743,26 @@ async function main() {
   }
 
 
+  if (
+    records7Day.length === 0
+  ) {
+
+    throw new Error(
+      "CWA F-D0047-007 沒有取得任何桃園預報資料"
+    );
+
+  }
+
+
   printDatasetSummary(
     records3Day,
     "F-D0047-005 / 未來3天"
+  );
+
+
+  printDatasetSummary(
+    records7Day,
+    "F-D0047-007 / 未來1週"
   );
 
 
@@ -1626,6 +1773,7 @@ async function main() {
   const message =
     buildTelegramMessage(
       records3Day,
+      records7Day,
       districts,
       targetDate
     );
