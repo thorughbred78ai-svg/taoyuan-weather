@@ -1332,15 +1332,20 @@ function buildTelegramMessage(
         of hourly
       ) {
 
+        // 沒有降雨機率就不輸出這筆資料
+        if (
+          item.pop === ""
+        ) {
+          continue;
+        }
+        
         let line =
           `${item.startTime}～${item.endTime}`;
 
 
         if (item.weather) {
-
           line +=
             `｜${item.weather}`;
-
         }
 
 
