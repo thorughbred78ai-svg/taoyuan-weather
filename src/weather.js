@@ -1345,16 +1345,6 @@ function buildTelegramMessage(
 
 
         if (
-          item.temperature !== ""
-        ) {
-
-          line +=
-            `｜${item.temperature}°C`;
-
-        }
-
-
-        if (
           item.pop !== ""
         ) {
 
